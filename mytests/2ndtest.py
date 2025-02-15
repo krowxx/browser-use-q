@@ -22,7 +22,7 @@ llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash', api_key=SecretStr(api_key
 
 async def main():
     agent = Agent(
-        task=f"Go to instagram.com, login with the following username: {instagram_username} and password: {instagram_password}, search for crave030 instagram and comment extremely bot like this: 'I love your posts! Keep up the good work!'",
+        task=f"Go to instagram.com, login with the following username: {instagram_username} and password: {instagram_password}, search for a big crypto instagram account and start engaging'",
         llm=llm,
     )
     result = await agent.run()
