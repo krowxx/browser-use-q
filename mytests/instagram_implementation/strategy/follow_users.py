@@ -6,6 +6,7 @@ Handles following users in batches with appropriate delays and engagement.
 import logging
 from typing import List, Optional, Dict, Any
 from browser_use.browser.browser import Browser
+from browser_use.browser.context import BrowserContext
 from browser_use.agent.service import Agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from ..config import MAX_FOLLOWS_PER_DAY, ACTIONS_PER_BATCH, DEFAULT_LLM
@@ -14,7 +15,7 @@ from .timing import wait_between_actions, wait_between_batches
 logger = logging.getLogger(__name__)
 
 async def follow_user(
-    browser: Browser,
+    browser_context: BrowserContext,
     username: str,
     llm: Optional[ChatGoogleGenerativeAI] = None,
     engage_first: bool = True
@@ -23,7 +24,7 @@ async def follow_user(
     Follow a single user on Instagram, optionally engaging with their content first.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         username: Username to follow
         llm: Language model for agent instructions
         engage_first: Whether to engage with user's content before following
@@ -47,7 +48,7 @@ async def follow_user(
         agent = Agent(
             task=task,
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the agent
@@ -65,7 +66,7 @@ async def follow_user(
         return False
 
 async def follow_users_batch(
-    browser: Browser,
+    browser_context: BrowserContext,
     usernames: List[str],
     batch_size: int,
     llm: Optional[ChatGoogleGenerativeAI] = None,
@@ -75,7 +76,7 @@ async def follow_users_batch(
     Follow a batch of users with appropriate delays between actions.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         usernames: List of usernames to follow
         batch_size: Number of users to follow in this batch
         llm: Language model for agent instructions
@@ -96,7 +97,7 @@ async def follow_users_batch(
             continue
             
         # Follow the user
-        success = await follow_user(browser, username, llm, engage_first)
+        success = await follow_user(browser_context, username, llm, engage_first)
         results[username] = success
         
         # Wait between actions
@@ -105,7 +106,7 @@ async def follow_users_batch(
     return results
 
 async def follow_users_daily(
-    browser: Browser,
+    browser_context: BrowserContext,
     usernames: List[str],
     llm: Optional[ChatGoogleGenerativeAI] = None,
     engage_first: bool = True
@@ -114,7 +115,7 @@ async def follow_users_daily(
     Follow users throughout the day in batches, respecting daily limits.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         usernames: List of usernames to follow
         llm: Language model for agent instructions
         engage_first: Whether to engage with users' content before following
@@ -136,7 +137,7 @@ async def follow_users_daily(
         
         # Follow batch of users
         batch_results = await follow_users_batch(
-            browser,
+            browser_context,
             remaining_users,
             batch_size,
             llm,

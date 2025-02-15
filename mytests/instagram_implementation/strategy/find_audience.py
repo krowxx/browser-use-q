@@ -6,6 +6,7 @@ Handles hashtag exploration and competitor follower analysis.
 import logging
 from typing import List, Set, Dict, Any, Optional
 from browser_use.browser.browser import Browser
+from browser_use.browser.context import BrowserContext
 from browser_use.agent.service import Agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from ..config import HASHTAGS, COMPETITOR_ACCOUNTS, DEFAULT_LLM
@@ -14,7 +15,7 @@ from .timing import wait_between_actions
 logger = logging.getLogger(__name__)
 
 async def find_users_from_hashtag(
-    browser: Browser,
+    browser_context: BrowserContext,
     hashtag: str,
     max_users: int = 50,
     llm: Optional[ChatGoogleGenerativeAI] = None
@@ -23,7 +24,7 @@ async def find_users_from_hashtag(
     Find users by exploring posts under a specific hashtag.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         hashtag: Hashtag to explore (without #)
         max_users: Maximum number of users to collect
         llm: Language model for agent instructions
@@ -42,7 +43,7 @@ async def find_users_from_hashtag(
         agent = Agent(
             task=f"Navigate to {hashtag_url} and collect usernames from post authors",
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the agent and collect results
@@ -69,7 +70,7 @@ async def find_users_from_hashtag(
     return users
 
 async def find_users_from_competitor(
-    browser: Browser,
+    browser_context: BrowserContext,
     competitor_username: str,
     max_users: int = 50,
     llm: Optional[ChatGoogleGenerativeAI] = None
@@ -78,7 +79,7 @@ async def find_users_from_competitor(
     Find users by analyzing a competitor's followers.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         competitor_username: Competitor's username (without @)
         max_users: Maximum number of users to collect
         llm: Language model for agent instructions
@@ -97,7 +98,7 @@ async def find_users_from_competitor(
         agent = Agent(
             task=f"Navigate to {profile_url}, open the followers list, and collect usernames",
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the agent and collect results
@@ -124,7 +125,7 @@ async def find_users_from_competitor(
     return users
 
 async def find_target_audience(
-    browser: Browser,
+    browser_context: BrowserContext,
     max_users: int = 200,
     llm: Optional[ChatGoogleGenerativeAI] = None
 ) -> List[str]:
@@ -132,7 +133,7 @@ async def find_target_audience(
     Find target audience by combining users from hashtags and competitor analysis.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         max_users: Maximum total users to collect
         llm: Language model for agent instructions
     
@@ -149,7 +150,7 @@ async def find_target_audience(
     for hashtag in HASHTAGS:
         if len(all_users) >= max_users:
             break
-        users = await find_users_from_hashtag(browser, hashtag, users_per_source, llm)
+        users = await find_users_from_hashtag(browser_context, hashtag, users_per_source, llm)
         all_users.update(users)
         await wait_between_actions()
     
@@ -158,7 +159,7 @@ async def find_target_audience(
         if len(all_users) >= max_users:
             break
         users = await find_users_from_competitor(
-            browser,
+            browser_context,
             competitor.strip('@'),
             users_per_source,
             llm

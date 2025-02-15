@@ -8,10 +8,10 @@ import sys
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
-from browser_use.browser.browser import Browser, BrowserConfig
-from browser_use.browser.context import BrowserContextConfig
-from browser_use.agent.service import Agent
+from typing import Optional, Tuple
+from browser_use import Agent, Browser
+from browser_use.browser.browser import BrowserConfig
+from browser_use.browser.context import BrowserContext, BrowserContextConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .config import INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD, DEFAULT_LLM
 from .daily_tasks import run_daily_tasks, resume_daily_tasks, DailyStats
@@ -24,21 +24,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 async def instagram_login(
-    browser: Browser,
+    browser_context: BrowserContext,
     llm: ChatGoogleGenerativeAI
 ) -> bool:
     """
     Log in to Instagram using the configured credentials.
     
     Args:
-        browser: Browser instance
+        browser_context: Browser context to use for login
         llm: Language model for instructions
     
     Returns:
         bool: True if login was successful, False otherwise
     """
     try:
-        # Create agent for login
+        # Create agent for login with the provided context
         agent = Agent(
             task=(
                 "Log in to Instagram with these credentials:\n"
@@ -47,15 +47,16 @@ async def instagram_login(
                 "After logging in, verify we're on the Instagram home feed."
             ),
             llm=llm,
-            browser=browser
+            browser_context=browser_context,
+            use_vision=True
         )
         
         # Run the login agent
         history = await agent.run()
         
-        # Check if login was successful
+        # Check if login was successful by verifying we're on the home feed
         for action in history.action_results():
-            if action.is_done:
+            if action.extracted_content and "successfully logged in" in action.extracted_content.lower():
                 return True
         
         return False
@@ -64,85 +65,62 @@ async def instagram_login(
         logger.error(f"Error during Instagram login: {str(e)}")
         return False
 
-async def main(
-    resume_file: Optional[str] = None,
-    headless: bool = False
-) -> None:
+async def setup_browser_and_context() -> Tuple[Browser, BrowserContext]:
+    """
+    Set up the browser and context with appropriate configurations.
+    
+    Returns:
+        Tuple[Browser, BrowserContext]: The configured browser and context instances
+    """
+    # Initialize browser with configuration to keep it alive
+    browser_config = BrowserConfig(
+        _force_keep_browser_alive=True,
+        headless=False,  # Set to True for production
+        disable_security=True
+    )
+    browser = Browser(config=browser_config)
+    
+    # Create context configuration that keeps the context alive
+    context_config = BrowserContextConfig(
+        _force_keep_context_alive=True,
+        cookies_file="instagram_cookies.json"  # Save cookies for potential reuse
+    )
+    
+    # Create and return the context
+    browser_context = await browser.new_context(config=context_config)
+    return browser, browser_context
+
+async def main():
     """
     Main function to run the Instagram automation.
-    
-    Args:
-        resume_file: Optional path to stats file to resume from
-        headless: Whether to run the browser in headless mode
     """
-    # Validate environment
-    if not INSTAGRAM_USERNAME or not INSTAGRAM_PASSWORD:
-        raise ValueError(
-            "Instagram credentials not found. "
-            "Please set INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in your .env file."
-        )
-    
-    # Initialize browser with custom config
-    context_config = BrowserContextConfig(
-        browser_window_size={'width': 1280, 'height': 800},
-        user_agent=(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/91.0.4472.124 Safari/537.36"
-        ),
-        locale="en-US",
-        disable_security=True,
-        wait_for_network_idle_page_load_time=3.0,
-        highlight_elements=True
-    )
-    
-    browser_config = BrowserConfig(
-        headless=headless,
-        disable_security=True,
-        new_context_config=context_config
-    )
-    
-    browser = Browser(config=browser_config)
-    llm = DEFAULT_LLM
+    browser = None
+    browser_context = None
     
     try:
-        # Log in to Instagram
-        logger.info("Logging in to Instagram...")
-        login_success = await instagram_login(browser, llm)
+        # Initialize browser, context and LLM
+        browser, browser_context = await setup_browser_and_context()
+        llm = DEFAULT_LLM
         
+        # Perform login using the created context
+        login_success = await instagram_login(browser_context, llm)
         if not login_success:
-            raise Exception("Failed to log in to Instagram")
-        
+            logger.error("Failed to log in to Instagram")
+            return
+            
         logger.info("Successfully logged in to Instagram")
         
-        # Run or resume daily tasks
-        if resume_file:
-            if not os.path.exists(resume_file):
-                raise FileNotFoundError(f"Resume file not found: {resume_file}")
-            
-            logger.info(f"Resuming tasks from {resume_file}")
-            stats = await resume_daily_tasks(browser, resume_file, llm)
-        else:
-            logger.info("Starting new daily tasks")
-            stats = await run_daily_tasks(browser, llm)
-        
-        # Log final stats
-        logger.info("Daily tasks completed. Final stats:")
-        logger.info(f"- Target audience size: {len(stats.stats['target_audience'])}")
-        logger.info(f"- Successful follows: {stats.stats['follows'].get('successful', 0)}")
-        logger.info(f"- Total likes: {stats.stats['likes'].get('total_likes', 0)}")
-        logger.info(f"- Successful comments: {stats.stats['comments'].get('successful', 0)}")
-        
-        if stats.stats['errors']:
-            logger.warning(f"Encountered {len(stats.stats['errors'])} errors during execution")
+        # Continue with daily tasks using the same context
+        await run_daily_tasks(browser_context, llm)
         
     except Exception as e:
-        logger.error(f"Error in main execution: {str(e)}")
-        raise
-    
+        logger.error(f"Error in main function: {str(e)}")
     finally:
-        # Always close the browser
-        await browser.close()
+        # Clean up resources
+        if browser_context:
+            await browser_context.close()
+        if browser:
+            await browser.close()
 
 if __name__ == "__main__":
     import argparse
@@ -163,4 +141,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Run the main function
-    asyncio.run(main(args.resume, args.headless)) 
+    asyncio.run(main()) 

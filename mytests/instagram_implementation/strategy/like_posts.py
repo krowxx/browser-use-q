@@ -6,6 +6,7 @@ Handles liking posts in batches with appropriate delays.
 import logging
 from typing import List, Optional, Dict, Any
 from browser_use.browser.browser import Browser
+from browser_use.browser.context import BrowserContext
 from browser_use.agent.service import Agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from ..config import MAX_LIKES_PER_DAY, ACTIONS_PER_BATCH, HASHTAGS, DEFAULT_LLM
@@ -14,7 +15,7 @@ from .timing import wait_between_actions, wait_between_batches
 logger = logging.getLogger(__name__)
 
 async def like_user_posts(
-    browser: Browser,
+    browser_context: BrowserContext,
     username: str,
     max_likes: int = 3,
     llm: Optional[ChatGoogleGenerativeAI] = None
@@ -23,7 +24,7 @@ async def like_user_posts(
     Like a specified number of posts from a user's profile.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         username: Username whose posts to like
         max_likes: Maximum number of posts to like
         llm: Language model for agent instructions
@@ -46,7 +47,7 @@ async def like_user_posts(
         agent = Agent(
             task=task,
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the agent
@@ -68,7 +69,7 @@ async def like_user_posts(
         return 0
 
 async def like_hashtag_posts(
-    browser: Browser,
+    browser_context: BrowserContext,
     hashtag: str,
     max_likes: int = 10,
     llm: Optional[ChatGoogleGenerativeAI] = None
@@ -77,7 +78,7 @@ async def like_hashtag_posts(
     Like posts from a specific hashtag.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         hashtag: Hashtag to find posts from (without #)
         max_likes: Maximum number of posts to like
         llm: Language model for agent instructions
@@ -100,7 +101,7 @@ async def like_hashtag_posts(
         agent = Agent(
             task=task,
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the agent
@@ -122,7 +123,7 @@ async def like_hashtag_posts(
         return 0
 
 async def like_posts_batch(
-    browser: Browser,
+    browser_context: BrowserContext,
     usernames: List[str],
     hashtags: List[str],
     batch_size: int,
@@ -132,7 +133,7 @@ async def like_posts_batch(
     Like posts from a batch of users and hashtags.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         usernames: List of usernames to like posts from
         hashtags: List of hashtags to like posts from
         batch_size: Total number of likes to attempt in this batch
@@ -157,7 +158,7 @@ async def like_posts_batch(
             break
             
         likes = await like_user_posts(
-            browser,
+            browser_context,
             username,
             min(likes_per_user, likes_remaining),
             llm
@@ -173,7 +174,7 @@ async def like_posts_batch(
             break
             
         likes = await like_hashtag_posts(
-            browser,
+            browser_context,
             hashtag,
             min(likes_per_hashtag, likes_remaining),
             llm
@@ -186,7 +187,7 @@ async def like_posts_batch(
     return results
 
 async def like_posts_daily(
-    browser: Browser,
+    browser_context: BrowserContext,
     usernames: List[str],
     llm: Optional[ChatGoogleGenerativeAI] = None,
     custom_hashtags: Optional[List[str]] = None
@@ -195,7 +196,7 @@ async def like_posts_daily(
     Like posts throughout the day in batches, respecting daily limits.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         usernames: List of usernames to like posts from
         llm: Language model for agent instructions
         custom_hashtags: Optional list of hashtags to use instead of config hashtags
@@ -217,7 +218,7 @@ async def like_posts_daily(
         
         # Like batch of posts
         batch_results = await like_posts_batch(
-            browser,
+            browser_context,
             usernames,
             hashtags_to_use,
             batch_size,

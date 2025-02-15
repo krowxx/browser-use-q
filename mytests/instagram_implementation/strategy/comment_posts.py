@@ -7,6 +7,7 @@ import logging
 import random
 from typing import List, Optional, Dict, Any, Tuple
 from browser_use.browser.browser import Browser
+from browser_use.browser.context import BrowserContext
 from browser_use.agent.service import Agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 from ..config import (
@@ -58,7 +59,7 @@ async def generate_comment(
     return random.choice(COMMENT_TEMPLATES)
 
 async def comment_on_post(
-    browser: Browser,
+    browser_context: BrowserContext,
     post_url: str,
     llm: Optional[ChatGoogleGenerativeAI] = None,
     comment: Optional[str] = None
@@ -67,7 +68,7 @@ async def comment_on_post(
     Comment on a specific Instagram post.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         post_url: URL of the post to comment on
         llm: Language model for instructions and comment generation
         comment: Optional pre-generated comment to use
@@ -83,7 +84,7 @@ async def comment_on_post(
         analysis_agent = Agent(
             task=f"Navigate to {post_url} and extract the post's content/caption for analysis",
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         analysis_history = await analysis_agent.run()
@@ -107,7 +108,7 @@ async def comment_on_post(
                 f" 5. Return 'commented' if successful"
             ),
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the comment agent
@@ -125,7 +126,7 @@ async def comment_on_post(
         return False
 
 async def find_posts_to_comment(
-    browser: Browser,
+    browser_context: BrowserContext,
     hashtag: str,
     max_posts: int = 5,
     llm: Optional[ChatGoogleGenerativeAI] = None
@@ -134,7 +135,7 @@ async def find_posts_to_comment(
     Find suitable posts to comment on from a hashtag.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         hashtag: Hashtag to find posts from (without #)
         max_posts: Maximum number of posts to find
         llm: Language model for instructions
@@ -158,7 +159,7 @@ async def find_posts_to_comment(
                 f" 3. Return the list of post URLs"
             ),
             llm=llm,
-            browser=browser
+            browser_context=browser_context
         )
         
         # Run the agent
@@ -182,7 +183,7 @@ async def find_posts_to_comment(
         return []
 
 async def comment_posts_batch(
-    browser: Browser,
+    browser_context: BrowserContext,
     hashtags: List[str],
     batch_size: int,
     llm: Optional[ChatGoogleGenerativeAI] = None
@@ -191,7 +192,7 @@ async def comment_posts_batch(
     Comment on a batch of posts from different hashtags.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         hashtags: List of hashtags to find posts from
         batch_size: Number of comments to attempt in this batch
         llm: Language model for instructions and comment generation
@@ -212,7 +213,7 @@ async def comment_posts_batch(
             
         # Find posts for this hashtag
         posts = await find_posts_to_comment(
-            browser,
+            browser_context,
             hashtag,
             min(posts_per_hashtag, comments_remaining),
             llm
@@ -225,7 +226,7 @@ async def comment_posts_batch(
             if comments_remaining <= 0:
                 break
                 
-            success = await comment_on_post(browser, post_url, llm)
+            success = await comment_on_post(browser_context, post_url, llm)
             results[hashtag].append((post_url, success))
             if success:
                 comments_remaining -= 1
@@ -235,7 +236,7 @@ async def comment_posts_batch(
     return results
 
 async def comment_posts_daily(
-    browser: Browser,
+    browser_context: BrowserContext,
     llm: Optional[ChatGoogleGenerativeAI] = None,
     custom_hashtags: Optional[List[str]] = None
 ) -> Dict[str, List[Tuple[str, bool]]]:
@@ -243,7 +244,7 @@ async def comment_posts_daily(
     Comment on posts throughout the day in batches, respecting daily limits.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         llm: Language model for instructions and comment generation
         custom_hashtags: Optional list of hashtags to use instead of config hashtags
     
@@ -264,7 +265,7 @@ async def comment_posts_daily(
         
         # Comment on batch of posts
         batch_results = await comment_posts_batch(
-            browser,
+            browser_context,
             hashtags_to_use,
             batch_size,
             llm

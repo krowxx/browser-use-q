@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 from browser_use.browser.browser import Browser
+from browser_use.browser.context import BrowserContext
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .strategy.find_audience import find_target_audience
 from .strategy.follow_users import follow_users_daily
@@ -90,7 +91,7 @@ class DailyStats:
         logger.info(f"Saved daily stats to {filename}")
 
 async def run_daily_tasks(
-    browser: Browser,
+    browser_context: BrowserContext,
     llm: Optional[ChatGoogleGenerativeAI] = None,
     stats: Optional[DailyStats] = None
 ) -> DailyStats:
@@ -98,7 +99,7 @@ async def run_daily_tasks(
     Run the complete daily Instagram automation routine.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         llm: Language model for instructions and content generation
         stats: Optional DailyStats instance for tracking
     
@@ -114,7 +115,7 @@ async def run_daily_tasks(
     try:
         # 1. Find target audience
         logger.info("Finding target audience...")
-        target_users = await find_target_audience(browser, llm=llm)
+        target_users = await find_target_audience(browser_context, llm=llm)
         stats.update_target_audience(target_users)
         
         # Wait between major tasks
@@ -123,7 +124,7 @@ async def run_daily_tasks(
         # 2. Follow users
         logger.info("Following users...")
         follow_results = await follow_users_daily(
-            browser,
+            browser_context,
             target_users,
             llm=llm,
             engage_first=True  # Like a post before following
@@ -135,7 +136,7 @@ async def run_daily_tasks(
         # 3. Like posts
         logger.info("Liking posts...")
         like_results = await like_posts_daily(
-            browser,
+            browser_context,
             target_users,  # Like posts from target users
             llm=llm
         )
@@ -146,7 +147,7 @@ async def run_daily_tasks(
         # 4. Comment on posts
         logger.info("Commenting on posts...")
         comment_results = await comment_posts_daily(
-            browser,
+            browser_context,
             llm=llm
         )
         stats.update_comments(comment_results)
@@ -158,13 +159,13 @@ async def run_daily_tasks(
         raise
     
     finally:
-        # Always save stats, even if there was an error
+        # Save stats but don't close browser_context - it's managed by main.py
         stats.save()
     
     return stats
 
 async def resume_daily_tasks(
-    browser: Browser,
+    browser_context: BrowserContext,
     stats_file: str,
     llm: Optional[ChatGoogleGenerativeAI] = None
 ) -> DailyStats:
@@ -172,7 +173,7 @@ async def resume_daily_tasks(
     Resume daily tasks from a previous run using saved stats.
     
     Args:
-        browser: Browser instance
+        browser_context: BrowserContext instance
         stats_file: Path to the stats JSON file from previous run
         llm: Language model for instructions and content generation
     
@@ -208,7 +209,7 @@ async def resume_daily_tasks(
             
             if remaining_users:
                 follow_results = await follow_users_daily(
-                    browser,
+                    browser_context,
                     remaining_users,
                     llm=llm,
                     engage_first=True
@@ -221,7 +222,7 @@ async def resume_daily_tasks(
         if remaining_likes > 0:
             logger.info(f"Resuming likes ({remaining_likes} remaining)...")
             like_results = await like_posts_daily(
-                browser,
+                browser_context,
                 stats.stats["target_audience"],
                 llm=llm
             )
@@ -236,7 +237,7 @@ async def resume_daily_tasks(
         if remaining_comments > 0:
             logger.info(f"Resuming comments ({remaining_comments} remaining)...")
             comment_results = await comment_posts_daily(
-                browser,
+                browser_context,
                 llm=llm
             )
             # Merge new results with previous
@@ -254,6 +255,7 @@ async def resume_daily_tasks(
         raise
     
     finally:
+        # Save stats but don't close browser_context - it's managed by main.py
         stats.save()
     
     return stats 
