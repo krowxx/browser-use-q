@@ -27,10 +27,6 @@ controller = Controller(exclude_actions=['click_element'])  # Prevent normal cli
 async def like_instagram_post(params: InstagramLikeAction, browser: BrowserContext):
     return await instagram_like_with_mouse(browser)
 
-# Define a simple task that instructs the agent to:
-# 1. Start at the provided post URL.
-# 2. Like the post using our custom action.
-# 3. Post a relevant comment based on the post content.
 task = (
     f"Start at the Instagram post URL {POST_URL}. "
     "IMPORTANT: To like the post, you MUST use the 'Like Instagram post using mouse interaction' action - "
