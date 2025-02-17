@@ -37,8 +37,8 @@ ACTIONS_PER_BATCH = {
 }
 
 # Time intervals (in seconds)
-MIN_ACTION_DELAY = 3
-MAX_ACTION_DELAY = 7
+MIN_ACTION_DELAY = 0.5
+MAX_ACTION_DELAY = 1.5
 MIN_BATCH_DELAY = 30 * 60  # 30 minutes
 MAX_BATCH_DELAY = 90 * 60  # 90 minutes
 
