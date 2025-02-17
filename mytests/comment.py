@@ -7,7 +7,7 @@ from browser_use import Agent
 from browser_use.browser.browser import Browser, BrowserConfig
 from browser_use.browser.context import BrowserContext, BrowserContextConfig
 from browser_use.controller.service import Controller
-from mytests.instagram_implementation.strategy.like_with_mouse import instagram_like_with_mouse, InstagramLikeAction
+from mytests.like_with_mouse import instagram_like_with_mouse, InstagramLikeAction
 
 load_dotenv()
 
