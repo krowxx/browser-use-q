@@ -2,28 +2,43 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from browser_use import Agent
 from browser_use.browser.browser import Browser, BrowserConfig
 from browser_use.browser.context import BrowserContext, BrowserContextConfig
+from browser_use.controller.service import Controller
+from mytests.instagram_implementation.strategy.like_with_mouse import instagram_like_with_mouse, InstagramLikeAction
 
 load_dotenv()
 
 # Set the Instagram post URL here (replace POST_ID with the actual post ID)
-POST_URL = "https://www.instagram.com/p/DGGvOnfI23G/"
+POST_URL = "https://www.instagram.com/p/DFXUCXYigM7/?img_index=1"
 
 # Path to the cookies file (ensure this file exists with valid Instagram cookies)
 COOKIES_FILE = os.path.join("instagram_4thtest_cookies.json")
 
+# Initialize controller with custom Instagram actions
+controller = Controller(exclude_actions=['click_element'])  # Prevent normal clicking
+
+@controller.action(
+    'Like Instagram post using mouse interaction',
+    param_model=InstagramLikeAction
+)
+async def like_instagram_post(params: InstagramLikeAction, browser: BrowserContext):
+    return await instagram_like_with_mouse(browser)
+
 # Define a simple task that instructs the agent to:
 # 1. Start at the provided post URL.
-# 2. Like the post.
+# 2. Like the post using our custom action.
 # 3. Post a relevant comment based on the post content.
 task = (
     f"Start at the Instagram post URL {POST_URL}. "
-    "Like the post and post a relevant comment that reflects the content of the post."
+    "IMPORTANT: To like the post, you MUST use the 'Like Instagram post using mouse interaction' action - "
+    "do NOT try to click the like button directly as it won't work. "
+    "After liking, post a relevant comment that reflects the content of the post."
 )
 
-async def verify_login(context: BrowserContext, llm: ChatGoogleGenerativeAI) -> bool:
+async def verify_login(context: BrowserContext, llm: ChatGoogleGenerativeAI | ChatOpenAI) -> bool:
     """Verify if the current session is logged in to Instagram."""
     verify_task = (
         "1. Navigate to instagram.com\n"
@@ -49,8 +64,9 @@ async def verify_login(context: BrowserContext, llm: ChatGoogleGenerativeAI) -> 
 
 async def main():
     # Initialize the language model
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.0)
-    
+    #llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.0)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
+
     # Initialize browser with proper configuration
     browser_config = BrowserConfig(
         headless=False,
@@ -73,11 +89,12 @@ async def main():
             print("Error: Not logged in to Instagram. Please ensure valid cookies in the cookie file.")
             return
         
-        # Create the agent using the browser context
+        # Create the agent using the browser context and our custom controller
         agent = Agent(
             task=task,
             llm=llm,
             browser_context=context,
+            controller=controller  # Use our custom controller with Instagram actions
         )
         
         # Run the agent
