@@ -247,8 +247,8 @@ async def check_post_already_liked(page) -> bool:
 
 async def like_and_comment_flow(post_url: str, browser_context: BrowserContext):
     """
-    Create an agent to open the post_url, check if already liked, and if not,
-    run the custom 'Like Instagram post using mouse interaction' and post a comment.
+    Create an agent to open the post_url, follow the user if not following,
+    like if not already liked, and post a comment.
     """
     # Ensure we have the full Instagram URL
     if not post_url.startswith('http'):
@@ -256,21 +256,24 @@ async def like_and_comment_flow(post_url: str, browser_context: BrowserContext):
     else:
         full_url = post_url
 
-    # First navigate to the post and check if it's already liked
+    # First navigate to the post and check if already liked
     page = await browser_context.get_current_page()
     await page.goto(full_url)
     await asyncio.sleep(2)  # Wait for the page to load properly
     
+    # Check if post is already liked
     if await check_post_already_liked(page):
         logger.info(f"Post {post_url} is already liked, skipping interaction.")
         return
 
-    # If not already liked, proceed with like and comment
+    # If not already liked, proceed with follow, like and comment
     instructions = (
         f"1. You are already on the post page {full_url}\n"
-        "2. Use the action 'Like Instagram post using mouse interaction' to like the post.\n"
-        "3. Then add a short comment about the post, using the 'CommentOnPost' action.\n"
+        "2. Look at the top of the post where the user's name is. If there's a 'Follow' button (not 'Following' or 'Requested'), click it.\n"
+        "3. Use the action 'Like Instagram post using mouse interaction' to like the post.\n"
+        "4. Then add a short comment about the post, using the 'CommentOnPost' action.\n"
         "   Use fewer than 15 words.\n"
+        "Note: If you see 'Following' or 'Requested' instead of 'Follow', skip step 2.\n"
     )
     model = ChatOpenAI(model="gpt-4o", temperature=0.0)
     agent = Agent(
