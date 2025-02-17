@@ -15,7 +15,7 @@ load_dotenv()
 POST_URL = "https://www.instagram.com/p/DFXUCXYigM7/?img_index=1"
 
 # Path to the cookies file (ensure this file exists with valid Instagram cookies)
-COOKIES_FILE = os.path.join("instagram_4thtest_cookies.json")
+COOKIES_FILE = os.path.join("insta_cookie.json")
 
 # Initialize controller with custom Instagram actions
 controller = Controller(exclude_actions=['click_element'])  # Prevent normal clicking
