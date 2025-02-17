@@ -24,6 +24,15 @@ FITNESS_HASHTAGS = [
     "training"
 ]
 
+class FitnessPostOutput(BaseModel):
+    """Structure for the agent's output format"""
+    url: str
+    hashtags: List[str]
+
+class FitnessOutput(BaseModel):
+    """Structure for the complete output from the agent"""
+    posts: List[FitnessPostOutput]
+
 class FitnessPost(BaseModel):
     """Structure for storing fitness post information"""
     url: str
@@ -58,56 +67,48 @@ def save_progress(progress: FitnessProgress):
 
 async def explore_fitness_hashtag(browser_context: BrowserContext, hashtag: str, llm: ChatOpenAI) -> List[FitnessPost]:
     """
-    Explore a fitness hashtag page and collect post URLs.
-    Returns a list of FitnessPost objects.
+    Explore a fitness hashtag page and collect post URLs using structured output.
+    Returns a list of FitnessPost objects with additional metadata.
     """
+    # Create a controller with the structured output model
+    controller = Controller(output_model=FitnessOutput)
+    
     task = (
-        f"Visit Instagram explore page for #{hashtag} and collect post information:\n"
-        "1. Go to https://www.instagram.com/explore/tags/{hashtag}/\n"
-        "2. Wait for the page to load completely\n"
-        "3. For each visible post:\n"
-        "   a. Extract the post URL\n"
-        "   b. Look for related hashtags in the post preview\n"
-        "4. Scroll down to load more posts (3 times)\n"
-        "5. For each batch of posts found:\n"
-        "   Return the data in this exact format:\n"
-        "   POST_URL:::[hashtag1,hashtag2,...]:::\n"
-        "6. Continue until you've collected at least 10 unique posts\n"
-        "7. If no more posts are visible or loaded, return 'DONE'"
+        f"Visit Instagram explore page for #{hashtag} and collect at least 10 unique posts. "
+        "For each post, extract the post URL and a list of hashtags mentioned in the post preview. "
+        "Return a JSON object with a key 'posts' containing a list of objects. "
+        "Each object must have keys 'url' (a string) and 'hashtags' (a list of strings). "
+        "Do not include any additional text."
     )
     
-    posts: List[FitnessPost] = []
     agent = Agent(
         task=task,
         llm=llm,
+        controller=controller,
         browser_context=browser_context,
         generate_gif=False
     )
     
     history = await agent.run(max_steps=20)
+    final_output = history.final_result()
+    if not final_output:
+        return []
     
-    for action in history.action_results():
-        if action.extracted_content:
-            content = action.extracted_content.strip()
-            if content == "DONE":
-                break
-                
-            # Process each line that matches our expected format
-            for line in content.split('\n'):
-                if ':::' in line:
-                    url, hashtags_str = line.split(':::')[:2]
-                    try:
-                        hashtags = json.loads(hashtags_str)
-                        post = FitnessPost(
-                            url=url.strip(),
-                            hashtags=hashtags,
-                            collected_at=datetime.now().isoformat(),
-                            hashtag_source=hashtag
-                        )
-                        posts.append(post)
-                    except json.JSONDecodeError:
-                        continue
+    try:
+        fitness_output = FitnessOutput.model_validate_json(final_output)
+    except Exception as e:
+        print(f"Error parsing structured output: {e}")
+        return []
     
+    posts = []
+    for post_output in fitness_output.posts:
+        post = FitnessPost(
+            url=post_output.url,
+            hashtags=post_output.hashtags,
+            collected_at=datetime.now().isoformat(),
+            hashtag_source=hashtag
+        )
+        posts.append(post)
     return posts
 
 async def main():
